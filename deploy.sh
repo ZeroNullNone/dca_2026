@@ -9,7 +9,7 @@ fi
 
 mkdir -p data
 if [ -d data ]; then
-  backup_dir="${BACKUP_DIR:-/srv/backups/btc_dca_2026}"
+  backup_dir="${BACKUP_DIR:-/backups/btc_dca_2026}"
   mkdir -p "$backup_dir"
   tar -czf "$backup_dir/data-$(date +%Y%m%d-%H%M%S).tgz" data
 fi
