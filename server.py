@@ -5,6 +5,8 @@ import argparse
 import json
 import math
 import os
+import secrets
+import threading
 import time
 import uuid
 from datetime import datetime, timezone
@@ -17,6 +19,7 @@ ROOT = Path(__file__).resolve().parent
 DATA_DIR = ROOT / "data"
 DASHBOARD_PATH = DATA_DIR / "dashboard.json"
 EXECUTIONS_PATH = DATA_DIR / "executions.json"
+EXECUTIONS_LOCK = threading.Lock()
 
 BINANCE_BASES = (
     "https://api.binance.com",
@@ -90,6 +93,11 @@ def write_json(path: Path, data) -> None:
     tmp = path.with_suffix(path.suffix + ".tmp")
     tmp.write_text(json.dumps(data, indent=2, sort_keys=True))
     tmp.replace(path)
+
+
+def valid_api_token(config: dict[str, str], provided: str | None) -> bool:
+    token = config.get("DCA_API_TOKEN", "").strip()
+    return not token or secrets.compare_digest(provided or "", token)
 
 
 def dashboard_cache():
@@ -398,10 +406,25 @@ def build_dashboard_data() -> dict:
 
 
 def executions() -> list[dict]:
-    return read_json(EXECUTIONS_PATH, [])
+    if not EXECUTIONS_PATH.exists():
+        return []
+    data = json.loads(EXECUTIONS_PATH.read_text())
+    if not isinstance(data, list):
+        raise ValueError(f"{EXECUTIONS_PATH} must contain a JSON array")
+    return data
+
+
+def backup_executions() -> None:
+    if not EXECUTIONS_PATH.exists():
+        return
+    backup_dir = DATA_DIR / "backups"
+    backup_dir.mkdir(exist_ok=True)
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    (backup_dir / f"executions-{stamp}.json").write_bytes(EXECUTIONS_PATH.read_bytes())
 
 
 def save_executions(rows: list[dict]) -> None:
+    backup_executions()
     write_json(EXECUTIONS_PATH, rows)
 
 
@@ -418,6 +441,12 @@ class Handler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def require_api_token(self) -> bool:
+        if valid_api_token(load_config(), self.headers.get("X-DCA-Token")):
+            return True
+        self.send_json({"error": "missing or invalid API token"}, 401)
+        return False
+
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
         if parsed.path == "/api/data":
@@ -425,7 +454,11 @@ class Handler(SimpleHTTPRequestHandler):
                 build_dashboard_data()
             return self.send_json(dashboard_cache())
         if parsed.path == "/api/executions":
-            return self.send_json(executions())
+            try:
+                with EXECUTIONS_LOCK:
+                    return self.send_json(executions())
+            except Exception as exc:
+                return self.send_json({"error": f"execution store unreadable: {exc}"}, 500)
         if parsed.path == "/":
             self.path = "/index.html"
         return super().do_GET()
@@ -433,40 +466,54 @@ class Handler(SimpleHTTPRequestHandler):
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
         if parsed.path == "/api/refresh":
+            if not self.require_api_token():
+                return
             try:
                 return self.send_json(build_dashboard_data())
             except Exception as exc:
                 return self.send_json({"error": str(exc), "cached": dashboard_cache() if DASHBOARD_PATH.exists() else None}, 502)
         if parsed.path == "/api/executions":
+            if not self.require_api_token():
+                return
             length = int(self.headers.get("Content-Length", "0"))
             payload = json.loads(self.rfile.read(length).decode("utf-8") or "{}")
-            rows = executions()
-            usdt = float(payload.get("usdt") or 0)
-            price = float(payload.get("price") or 0)
-            fee = float(payload.get("fee") or 0)
-            btc = float(payload.get("btc") or 0) or ((usdt - fee) / price if usdt and price else 0)
-            record = {
-                "id": str(uuid.uuid4()),
-                "date": payload.get("date") or iso_now(),
-                "bucket": payload.get("bucket") or "manual",
-                "usdt": usdt,
-                "price": price,
-                "btc": btc,
-                "fee": fee,
-                "note": str(payload.get("note") or "")[:180],
-            }
-            rows.append(record)
-            save_executions(rows)
-            return self.send_json(record, 201)
+            try:
+                with EXECUTIONS_LOCK:
+                    rows = executions()
+                    usdt = float(payload.get("usdt") or 0)
+                    price = float(payload.get("price") or 0)
+                    fee = float(payload.get("fee") or 0)
+                    btc = float(payload.get("btc") or 0) or ((usdt - fee) / price if usdt and price else 0)
+                    record = {
+                        "id": str(uuid.uuid4()),
+                        "date": payload.get("date") or iso_now(),
+                        "bucket": payload.get("bucket") or "manual",
+                        "usdt": usdt,
+                        "price": price,
+                        "btc": btc,
+                        "fee": fee,
+                        "note": str(payload.get("note") or "")[:180],
+                    }
+                    rows.append(record)
+                    save_executions(rows)
+                return self.send_json(record, 201)
+            except Exception as exc:
+                return self.send_json({"error": f"execution store not updated: {exc}"}, 500)
         return self.send_error(404)
 
     def do_DELETE(self) -> None:
         parsed = urlparse(self.path)
         if parsed.path.startswith("/api/executions/"):
+            if not self.require_api_token():
+                return
             target = parsed.path.rsplit("/", 1)[-1]
-            rows = [row for row in executions() if row.get("id") != target]
-            save_executions(rows)
-            return self.send_json({"ok": True})
+            try:
+                with EXECUTIONS_LOCK:
+                    rows = [row for row in executions() if row.get("id") != target]
+                    save_executions(rows)
+                return self.send_json({"ok": True})
+            except Exception as exc:
+                return self.send_json({"error": f"execution store not updated: {exc}"}, 500)
         return self.send_error(404)
 
 
@@ -479,6 +526,9 @@ def self_check() -> None:
     assert score["score"] == 4
     assert score["known"] == 5
     assert [level["multiple"] for level in reference_ladder({"wma200": 100, "spot": 125})] == [1.0, 0.98, 0.95, 0.9]
+    assert valid_api_token({}, None)
+    assert valid_api_token({"DCA_API_TOKEN": "secret"}, "secret")
+    assert not valid_api_token({"DCA_API_TOKEN": "secret"}, "wrong")
     print("self-check ok")
 
 

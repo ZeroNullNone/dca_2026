@@ -1238,6 +1238,7 @@
     ];
 
     const budgetKey = "btcDcaTotalBudget";
+    const apiTokenKey = "btcDcaApiToken";
     const defaultBudget = 10000;
     const ahrZones = [
       { id: "none", label: "> 0.45", name: "Not cheap enough", cap: 0, pace: 0 },
@@ -1326,9 +1327,19 @@
     }
 
     async function apiJson(path, options = {}) {
-      const res = await fetch(path, { cache: "no-store", ...options });
+      const token = localStorage.getItem(apiTokenKey);
+      const headers = { ...(options.headers || {}) };
+      if (token) headers["X-DCA-Token"] = token;
+      const res = await fetch(path, { cache: "no-store", ...options, headers });
       const text = await res.text();
       const body = text ? JSON.parse(text) : null;
+      if (res.status === 401) {
+        const nextToken = prompt("API token");
+        if (nextToken) {
+          localStorage.setItem(apiTokenKey, nextToken.trim());
+          return apiJson(path, options);
+        }
+      }
       if (!res.ok) {
         const error = new Error(body?.error || res.statusText);
         error.body = body;
@@ -1866,6 +1877,7 @@
       $("executionPanel").addEventListener("click", async (event) => {
         const id = event.target?.dataset?.delete;
         if (!id) return;
+        if (!confirm("Delete this execution record?")) return;
         await apiJson(`/api/executions/${id}`, { method: "DELETE" });
         await loadExecutions();
       });
