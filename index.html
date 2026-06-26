@@ -1,0 +1,1894 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BTC DCA Execution</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #f4f4f2;
+      --paper-2: #eaeae8;
+      --surface: #fbfbfa;
+      --surface-2: #f7f7f5;
+      --ink: #1a1814;
+      --ink-2: #3d3830;
+      --muted: #625c51;
+      --line: #1a1814;
+      --line-soft: rgba(26, 24, 20, .24);
+      --accent: #d64933;
+      --accent-soft: #f8ded8;
+      --good: #2e8b6b;
+      --good-soft: #dceee7;
+      --warn: #9a6507;
+      --warn-soft: #f6e8bb;
+      --bad: #b83e2f;
+      --bad-soft: #f3d8d4;
+      --price: #0f6f8f;
+      --wma: #2e8b6b;
+      --mvrv: #7a5fbd;
+      --nupl: #137f76;
+      --puell: #b8790c;
+      --fear: #d64933;
+      --head: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      --mono: "SFMono-Regular", Consolas, "Liberation Mono", ui-monospace, monospace;
+      --shadow: 6px 6px 0 rgba(26, 24, 20, .12);
+      --shadow-tight: 3px 3px 0 rgba(26, 24, 20, .12);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font: 13px/1.45 var(--mono);
+      letter-spacing: 0;
+      overflow-x: hidden;
+    }
+
+    button,
+    input,
+    select,
+    textarea {
+      font: inherit;
+      letter-spacing: 0;
+    }
+
+    button {
+      min-height: 40px;
+      border: 1.5px solid var(--line);
+      border-radius: 6px;
+      background: var(--surface);
+      color: var(--ink);
+      font-family: var(--head);
+      font-weight: 650;
+      padding: 0 12px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: var(--paper-2);
+    }
+
+    button.is-active {
+      background: var(--ink);
+      color: var(--paper);
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: .58;
+    }
+
+    button:focus-visible,
+    input:focus-visible,
+    select:focus-visible,
+    textarea:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    .primary {
+      background: var(--ink);
+      border-color: var(--ink);
+      color: var(--paper);
+      font-weight: 760;
+    }
+
+    .danger {
+      color: var(--bad);
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin: 0;
+    }
+
+    h1 {
+      font-family: var(--head);
+      font-size: 1.45rem;
+      line-height: 1.15;
+      font-weight: 800;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      font-family: var(--head);
+      font-size: 1rem;
+      line-height: 1.2;
+      font-weight: 760;
+    }
+
+    h3 {
+      font-family: var(--head);
+      font-size: .9rem;
+      font-weight: 730;
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+
+    .shell {
+      width: min(1440px, 100%);
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      display: grid;
+      grid-template-columns: minmax(280px, 1fr) auto;
+      gap: 14px;
+      align-items: center;
+      margin: -20px -20px 16px;
+      padding: 12px 20px;
+      border-bottom: 1.5px solid var(--line);
+      background: var(--paper);
+    }
+
+    .topbar h1 b {
+      color: var(--accent);
+    }
+
+    .toolbar,
+    .pill-row,
+    .button-row,
+    .range-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .toolbar {
+      justify-content: flex-end;
+      min-width: 0;
+    }
+
+    .budget-control {
+      display: grid;
+      min-width: 190px;
+      gap: 4px;
+      color: var(--muted);
+      font-family: var(--head);
+      font-size: .76rem;
+      font-weight: 730;
+    }
+
+    .budget-control input {
+      min-height: 40px;
+      background: var(--surface);
+      font-family: var(--mono);
+      font-weight: 760;
+    }
+
+    .pill {
+      display: inline-flex;
+      min-height: 28px;
+      align-items: center;
+      border: 1.5px solid var(--line);
+      border-radius: 999px;
+      background: var(--surface);
+      color: var(--ink-2);
+      padding: 3px 10px;
+      white-space: nowrap;
+      font-family: var(--head);
+      font-size: .82rem;
+      font-weight: 650;
+    }
+
+    .pill.good {
+      background: var(--good-soft);
+      color: var(--good);
+      border-color: var(--good);
+    }
+
+    .pill.warn {
+      background: var(--warn-soft);
+      color: var(--warn);
+      border-color: var(--warn);
+    }
+
+    .pill.bad {
+      background: var(--bad-soft);
+      color: var(--bad);
+      border-color: var(--bad);
+    }
+
+    .market-focus {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 16px;
+      align-items: start;
+      margin-bottom: 16px;
+    }
+
+    .stack {
+      display: grid;
+      gap: 14px;
+    }
+
+    .market-related {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) minmax(220px, .75fr);
+      gap: 14px;
+      align-items: start;
+    }
+
+    .market-related table {
+      min-width: 0;
+    }
+
+    .plan-execution {
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(320px, .8fr);
+      gap: 16px;
+      align-items: start;
+    }
+
+    .plan-wide {
+      grid-column: 1 / -1;
+    }
+
+    .plan-execution > aside .form-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .plan-guides {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .panel {
+      border: 1.5px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+      box-shadow: var(--shadow-tight);
+      overflow: hidden;
+    }
+
+    .panel-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      padding: 12px 14px;
+      border-bottom: 1.5px dashed var(--line);
+      background: var(--surface);
+    }
+
+    .panel-body {
+      padding: 14px;
+    }
+
+    .summary {
+      display: grid;
+      grid-template-columns: minmax(260px, .9fr) minmax(360px, 1.35fr) minmax(260px, .9fr);
+      gap: 12px;
+      align-items: stretch;
+      margin-bottom: 16px;
+    }
+
+    .playbook {
+      display: grid;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .playbook-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 1px;
+      border: 1.5px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--line);
+    }
+
+    .playbook-step {
+      min-height: 132px;
+      background: var(--surface);
+      padding: 12px;
+    }
+
+    .step-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .step-index {
+      display: inline-grid;
+      place-items: center;
+      min-width: 30px;
+      height: 30px;
+      border: 1.5px solid var(--line);
+      border-radius: 999px;
+      background: var(--ink);
+      font-weight: 820;
+      color: var(--paper);
+    }
+
+    .step-score {
+      color: var(--muted);
+      font-size: .78rem;
+      font-weight: 760;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .playbook-step strong {
+      display: block;
+      margin-bottom: 5px;
+      font-family: var(--head);
+      font-size: .95rem;
+    }
+
+    .playbook-step p {
+      color: var(--muted);
+      font-size: .85rem;
+    }
+
+    .routine-list,
+    .discipline-list {
+      display: grid;
+      gap: 9px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .routine-list li,
+    .discipline-list li {
+      display: grid;
+      grid-template-columns: 24px minmax(0, 1fr);
+      gap: 8px;
+      align-items: start;
+      color: var(--muted);
+    }
+
+    .routine-list b,
+    .discipline-list b {
+      color: var(--ink);
+    }
+
+    .check-dot {
+      display: inline-grid;
+      place-items: center;
+      width: 22px;
+      height: 22px;
+      border: 1.5px solid var(--line);
+      border-radius: 999px;
+      background: var(--surface);
+      color: var(--ink);
+      font-size: .78rem;
+      font-weight: 820;
+    }
+
+    .bucket-note {
+      display: grid;
+      gap: 8px;
+      color: var(--muted);
+      font-size: .88rem;
+    }
+
+    .bucket-note div {
+      display: grid;
+      grid-template-columns: 42px minmax(0, 1fr);
+      gap: 8px;
+      align-items: baseline;
+    }
+
+    .bucket-note strong {
+      color: var(--ink);
+    }
+
+    .decision-grid {
+      display: grid;
+      grid-template-columns: minmax(220px, 1.15fr) repeat(3, minmax(160px, 1fr));
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .decision-tile {
+      min-height: 112px;
+      border: 1.5px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+      padding: 14px;
+    }
+
+    .decision-tile .label,
+    .portfolio-stat .label {
+      color: var(--muted);
+      font-size: .77rem;
+      font-weight: 760;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+    }
+
+    .decision-tile.is-primary {
+      background: var(--ink);
+      color: var(--paper);
+    }
+
+    .decision-tile.is-primary .label,
+    .decision-tile.is-primary .sub {
+      color: #deddd9;
+    }
+
+    .decision-tile .value {
+      margin-top: 8px;
+      font-family: var(--head);
+      font-size: 1.55rem;
+      line-height: 1.08;
+      font-weight: 820;
+      overflow-wrap: anywhere;
+    }
+
+    .decision-tile .sub {
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: .82rem;
+    }
+
+    .formula-line {
+      border: 1px dashed var(--line-soft);
+      border-radius: 8px;
+      background: var(--surface-2);
+      color: var(--ink-2);
+      padding: 10px 12px;
+    }
+
+    .matrix-table {
+      min-width: 900px;
+    }
+
+    .matrix-table th.is-current,
+    .matrix-table tr.is-current-row td,
+    .matrix-table td.is-current-col {
+      background: var(--good-soft);
+    }
+
+    .matrix-table td.is-current-cell {
+      box-shadow: inset 0 0 0 2px var(--good);
+    }
+
+    .matrix-cell strong {
+      display: block;
+      font-family: var(--head);
+      font-size: .95rem;
+      color: var(--ink);
+    }
+
+    .matrix-cell span {
+      display: block;
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: .8rem;
+    }
+
+    .portfolio-panel {
+      display: grid;
+      gap: 12px;
+    }
+
+    .portfolio-stats {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 1px;
+      border: 1.5px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--line);
+    }
+
+    .portfolio-stat {
+      min-height: 72px;
+      background: var(--surface);
+      padding: 10px;
+    }
+
+    .portfolio-stat strong {
+      display: block;
+      margin-top: 6px;
+      font-family: var(--head);
+      font-size: 1rem;
+      overflow-wrap: anywhere;
+    }
+
+    .metric {
+      min-height: 108px;
+      border: 1.5px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+      box-shadow: var(--shadow-tight);
+      padding: 14px;
+    }
+
+    .metric .label,
+    .mini .label {
+      color: var(--muted);
+      font-size: .77rem;
+      font-weight: 760;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+    }
+
+    .metric .value {
+      margin-top: 9px;
+      font-family: var(--head);
+      font-size: 1.65rem;
+      line-height: 1.08;
+      font-weight: 820;
+      overflow-wrap: anywhere;
+    }
+
+    .metric .sub {
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: .82rem;
+    }
+
+    .score-card {
+      display: grid;
+      grid-template-columns: 102px minmax(0, 1fr);
+      gap: 14px;
+      align-items: center;
+    }
+
+    .score-card > * {
+      min-width: 0;
+    }
+
+    .score-card h3,
+    .score-card p,
+    .playbook-step p {
+      overflow-wrap: anywhere;
+    }
+
+    .score-box {
+      display: grid;
+      place-items: center;
+      color: var(--ink);
+    }
+
+    .score-card .score-sub {
+      color: var(--muted);
+    }
+
+    .score-main {
+      font-size: 2rem;
+      line-height: 1;
+      font-weight: 820;
+    }
+
+    .score-sub {
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: .8rem;
+      text-align: center;
+    }
+
+    .price-chart {
+      position: relative;
+      height: 550px;
+      min-height: 550px;
+      touch-action: pan-y;
+    }
+
+    .price-chart svg,
+    .mini svg {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    .chart-frame {
+      width: 100%;
+      height: 550px;
+      min-height: 550px;
+      border: 1.5px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+      overflow: hidden;
+    }
+
+    .chart-readout {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 1px;
+      margin-top: 12px;
+      border: 1.5px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--line);
+    }
+
+    .readout-item {
+      border: 0;
+      border-radius: 0;
+      background: var(--surface);
+      padding: 9px 10px;
+      min-height: 56px;
+    }
+
+    .readout-item strong {
+      display: block;
+      margin-top: 3px;
+      font-size: .98rem;
+      overflow-wrap: anywhere;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      color: var(--muted);
+      font-size: .82rem;
+      margin-top: 12px;
+    }
+
+    .legend span {
+      display: inline-flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .swatch {
+      width: 18px;
+      height: 3px;
+      border-radius: 3px;
+      background: currentColor;
+    }
+
+    .indicator-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 1px;
+      border: 1.5px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--line);
+    }
+
+    .mini {
+      border: 0;
+      border-radius: 0;
+      background: var(--surface);
+      padding: 11px;
+      min-height: 166px;
+    }
+
+    .mini-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: baseline;
+      margin-bottom: 8px;
+    }
+
+    .mini-value {
+      font-weight: 780;
+    }
+
+    .mini-chart {
+      height: 110px;
+      border: 1.5px solid var(--line);
+      border-radius: 6px;
+      overflow: hidden;
+      background: var(--surface);
+    }
+
+    .rule-list {
+      display: grid;
+      gap: 1px;
+      border: 1.5px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--line);
+    }
+
+    .rule {
+      display: grid;
+      grid-template-columns: 18px minmax(0, 1fr) auto auto;
+      gap: 8px;
+      align-items: center;
+      border: 0;
+      border-radius: 0;
+      background: var(--surface);
+      padding: 9px 10px;
+    }
+
+    .dot {
+      width: 17px;
+      height: 17px;
+      border: 1.5px solid var(--line);
+      border-radius: 999px;
+      background: var(--warn-soft);
+    }
+
+    .rule.pass .dot {
+      background: var(--good);
+      border-color: var(--good);
+    }
+
+    .rule.fail .dot {
+      background: var(--bad-soft);
+      border-color: var(--bad);
+    }
+
+    .rule-value {
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .rule-state {
+      min-width: 58px;
+      color: var(--muted);
+      font-size: .75rem;
+      font-weight: 760;
+      text-align: right;
+      text-transform: uppercase;
+    }
+
+    .pass {
+      color: var(--good);
+    }
+
+    .fail {
+      color: var(--bad);
+    }
+
+    .unknown {
+      color: var(--muted);
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 640px;
+    }
+
+    th,
+    td {
+      border-bottom: 1px dashed var(--line-soft);
+      padding: 9px 8px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      color: var(--muted);
+      font-size: .76rem;
+      text-transform: uppercase;
+      white-space: nowrap;
+      letter-spacing: .06em;
+      border-bottom: 1.5px solid var(--line);
+    }
+
+    td.num,
+    th.num {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .progress {
+      height: 8px;
+      margin-top: 7px;
+      overflow: hidden;
+      border: 1.2px solid var(--line);
+      border-radius: 999px;
+      background: var(--paper-2);
+    }
+
+    .progress > span {
+      display: block;
+      width: var(--value, 0%);
+      height: 100%;
+      background: var(--accent);
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    label {
+      display: grid;
+      gap: 5px;
+      color: var(--muted);
+      font-size: .82rem;
+      font-weight: 730;
+    }
+
+    input,
+    select,
+    textarea {
+      width: 100%;
+      min-height: 38px;
+      border: 1.5px solid var(--line);
+      border-radius: 6px;
+      background: var(--surface);
+      color: var(--ink);
+      padding: 8px 10px;
+    }
+
+    textarea {
+      min-height: 72px;
+      resize: vertical;
+    }
+
+    .full {
+      grid-column: 1 / -1;
+    }
+
+    .empty {
+      border: 1px dashed var(--line);
+      border-radius: 8px;
+      background: var(--paper-2);
+      color: var(--muted);
+      padding: 14px;
+    }
+
+    @media (max-width: 1120px) {
+      .market-focus,
+      .plan-execution,
+      .market-related,
+      .plan-guides,
+      .summary,
+      .topbar {
+        grid-template-columns: 1fr;
+      }
+
+      .toolbar {
+        justify-content: flex-start;
+      }
+
+      .chart-readout {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .indicator-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .playbook-grid,
+      .decision-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 720px) {
+      .shell {
+        padding: 12px;
+      }
+
+      .indicator-grid,
+      .form-grid,
+      .chart-readout,
+      .playbook-grid,
+      .decision-grid,
+      .portfolio-stats {
+        grid-template-columns: 1fr;
+      }
+
+      .toolbar {
+        display: grid;
+        grid-template-columns: 1fr;
+        width: 100%;
+      }
+
+      .toolbar .primary {
+        width: 100%;
+      }
+
+      .pill {
+        min-width: 0;
+        justify-content: center;
+        white-space: normal;
+        overflow-wrap: anywhere;
+      }
+
+      .step-score {
+        white-space: normal;
+        text-align: right;
+      }
+
+      .score-card {
+        grid-template-columns: 88px minmax(0, 1fr);
+      }
+
+      .score-box {
+        width: 88px;
+        min-height: 88px;
+      }
+
+      .score-main {
+        font-size: 1.7rem;
+      }
+
+      .panel-head {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .chart-frame,
+      .price-chart {
+        height: 550px;
+        min-height: 550px;
+      }
+
+      .topbar {
+        margin: -12px -12px 12px;
+        padding: 12px;
+        overflow: hidden;
+      }
+
+      .topbar > * {
+        min-width: 0;
+      }
+
+      .rule {
+        grid-template-columns: 22px minmax(0, 1fr);
+      }
+
+      .rule-value,
+      .rule-state {
+        grid-column: 2;
+        text-align: left;
+      }
+
+      button,
+      input,
+      select {
+        min-height: 44px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <h1>BTC <b>DCA</b> Execution</h1>
+        <p class="muted">Manual-refresh dashboard, spot only, no leverage.</p>
+      </div>
+      <div class="toolbar">
+        <label class="budget-control">Total DCA budget
+          <input id="totalBudget" inputmode="decimal" type="number" min="1" step="100" value="10000">
+        </label>
+        <span class="pill" id="dataState" aria-live="polite">Loading</span>
+        <span class="pill" id="lastUpdated">No cache</span>
+        <button class="primary" id="refreshBtn" type="button">Refresh data</button>
+      </div>
+    </header>
+
+    <section class="market-focus">
+      <div class="stack">
+        <section class="summary" id="summary"></section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <h2>Price And Bottom Zone</h2>
+              <p class="muted" id="chartWindow">Cached daily history</p>
+            </div>
+            <div class="range-row" id="rangeControls">
+              <button data-range="180" type="button">6M</button>
+              <button data-range="365" type="button">1Y</button>
+              <button data-range="730" type="button">2Y</button>
+              <button data-range="all" type="button">All</button>
+            </div>
+          </div>
+          <div class="panel-body">
+            <div class="chart-frame">
+              <div class="price-chart" id="priceChart" role="img" aria-label="BTC price, 200WMA, and reference levels"></div>
+            </div>
+            <div class="legend">
+              <span style="color: var(--price)"><i class="swatch"></i>BTC spot close</span>
+              <span style="color: var(--wma)"><i class="swatch"></i>200WMA</span>
+              <span style="color: var(--warn)"><i class="swatch"></i>reference levels</span>
+            </div>
+            <div class="chart-readout" id="chartReadout"></div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <h2>Indicators</h2>
+            <span class="muted">Thresholds from plan_upgraded.md</span>
+          </div>
+          <div class="panel-body">
+            <div class="indicator-grid" id="indicatorGrid"></div>
+          </div>
+        </section>
+
+        <div class="market-related">
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Confirmation Score</h2>
+              <span class="muted" id="scoreStatus">0 known</span>
+            </div>
+            <div class="panel-body">
+              <div class="rule-list" id="ruleList"></div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <h2>200WMA Reference</h2>
+            </div>
+            <div class="panel-body table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Level</th>
+                    <th class="num">Target</th>
+                    <th class="num">200WMA offset</th>
+                  </tr>
+                </thead>
+                <tbody id="ladderRows"></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </div>
+    </section>
+
+    <section class="plan-execution">
+      <section class="panel plan-wide" aria-labelledby="sizingTitle">
+        <div class="panel-head">
+          <div>
+            <h2 id="sizingTitle">Current DCA Size</h2>
+            <p class="muted">AHR999 sets the value zone. Confirmation score scales the target and weekly pace.</p>
+          </div>
+          <span class="pill" id="budgetPill">10,000 USDT budget</span>
+        </div>
+        <div class="panel-body">
+          <div class="decision-grid" id="decisionGrid"></div>
+          <div class="formula-line" id="decisionFormula"></div>
+        </div>
+      </section>
+
+      <section class="panel playbook plan-wide" aria-labelledby="matrixTitle">
+        <div class="panel-head">
+          <div>
+            <h2 id="matrixTitle">DCA Amount Matrix</h2>
+            <p class="muted">Each cell shows max cumulative target, then max weekly buy for the selected total budget.</p>
+          </div>
+          <span class="pill" id="matrixBudget">10,000 USDT budget</span>
+        </div>
+        <div class="panel-body table-wrap">
+          <table class="matrix-table">
+            <thead>
+              <tr>
+                <th>AHR999 zone</th>
+                <th>Score 0-3</th>
+                <th>Score 4</th>
+                <th>Score 5-6</th>
+                <th>Score 7-8</th>
+                <th>Score 9-10</th>
+              </tr>
+            </thead>
+            <tbody id="dcaMatrixRows"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <div class="stack">
+        <section class="panel">
+          <div class="panel-head">
+            <h2>Portfolio Progress</h2>
+            <span class="muted" id="portfolioSummary">No buys recorded</span>
+          </div>
+          <div class="panel-body portfolio-panel" id="portfolioPanel"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <h2>Execution Log</h2>
+            <button id="exportCsv" type="button">Export CSV</button>
+          </div>
+          <div class="panel-body" id="executionPanel"></div>
+        </section>
+      </div>
+
+      <aside class="stack">
+        <section class="panel">
+          <div class="panel-head">
+            <h2>Record Buy</h2>
+          </div>
+          <div class="panel-body">
+            <form class="form-grid" id="tradeForm">
+              <label>Date
+                <input id="tradeDate" type="datetime-local" required>
+              </label>
+              <label>Stage
+                <select id="tradeBucket" required></select>
+              </label>
+              <label>USDT spent
+                <input id="tradeUsdt" inputmode="decimal" type="number" step="0.01" min="0" required>
+              </label>
+              <label>Fill price
+                <input id="tradePrice" inputmode="decimal" type="number" step="0.01" min="0" required>
+              </label>
+              <label>BTC received
+                <input id="tradeBtc" inputmode="decimal" type="number" step="0.00000001" min="0">
+              </label>
+              <label>Fee USDT
+                <input id="tradeFee" inputmode="decimal" type="number" step="0.01" min="0" value="0">
+              </label>
+              <label class="full">Note
+                <textarea id="tradeNote" maxlength="180"></textarea>
+              </label>
+              <div class="button-row full">
+                <button class="primary" type="submit">Record buy</button>
+                <button id="fillMarket" type="button">Use spot</button>
+              </div>
+            </form>
+          </div>
+        </section>
+      </aside>
+
+      <div class="plan-guides plan-wide">
+        <section class="panel">
+          <div class="panel-head">
+            <h2>Weekly Routine</h2>
+          </div>
+          <div class="panel-body">
+            <ol class="routine-list">
+              <li><span class="check-dot">1</span><span><b>Set budget.</b> Enter the total DCA capital before reading any amount.</span></li>
+              <li><span class="check-dot">2</span><span><b>Refresh data.</b> Confirm AHR999 and the five confirmation metrics are current.</span></li>
+              <li><span class="check-dot">3</span><span><b>Use the buy box.</b> Execute the smaller of remaining target and weekly pace.</span></li>
+              <li><span class="check-dot">4</span><span><b>Record the fill.</b> Log stage, USDT, price, BTC, fee, and note before leaving.</span></li>
+            </ol>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <h2>Plan Rules</h2>
+          </div>
+          <div class="panel-body">
+            <div class="bucket-note">
+              <div><strong>AHR999</strong><span>Above 0.45 means no buy. Below 0.45 unlocks staged target caps.</span></div>
+              <div><strong>Score</strong><span>0-3 blocks buying; 4 probes; 5-6 normal; 7-8 accelerates; 9-10 is capitulation.</span></div>
+              <div><strong>Target</strong><span>AHR999 target cap multiplied by score target multiplier.</span></div>
+              <div><strong>Weekly</strong><span>AHR999 weekly pace multiplied by score pace multiplier.</span></div>
+              <div><strong>Spent</strong><span>Use USDT principal already deployed, not current BTC market value.</span></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <h2>Discipline</h2>
+          </div>
+          <div class="panel-body">
+            <ul class="discipline-list">
+              <li><span class="check-dot">•</span><span><b>Check weekly.</b> Do not redesign the plan every day.</span></li>
+              <li><span class="check-dot">•</span><span><b>No leverage.</b> This model sizes spot buys only.</span></li>
+              <li><span class="check-dot">•</span><span><b>No single-signal all-in.</b> Extreme AHR999 still needs score confirmation.</span></li>
+              <li><span class="check-dot">•</span><span><b>Missing Glassnode means partial score.</b> Treat MVRV, NUPL, Puell as unknown until API data loads.</span></li>
+            </ul>
+          </div>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const money0 = new Intl.NumberFormat(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+    const money2 = new Intl.NumberFormat(undefined, { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const num2 = new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const btcFmt = new Intl.NumberFormat(undefined, { minimumFractionDigits: 8, maximumFractionDigits: 8 });
+
+    const metricConfigs = [
+      { key: "ahr999", label: "AHR999", threshold: 0.45, color: "var(--price)", format: (v) => fmtNum(v, 3) },
+      { key: "mvrv_z", label: "MVRV Z-Score", threshold: 0.1, color: "var(--mvrv)", format: (v) => fmtNum(v, 3) },
+      { key: "nupl", label: "NUPL", threshold: 0.12, color: "var(--nupl)", format: (v) => fmtNum(v, 3) },
+      { key: "puell", label: "Puell Multiple", threshold: 0.6, color: "var(--puell)", format: (v) => fmtNum(v, 3) },
+      { key: "fear", label: "Fear & Greed", threshold: 25, color: "var(--fear)", format: (v) => fmtNum(v, 0) },
+      { key: "ath_drawdown", label: "ATH Drawdown", threshold: -0.55, color: "var(--bad)", format: (v) => fmtPct(v) }
+    ];
+
+    const budgetKey = "btcDcaTotalBudget";
+    const defaultBudget = 10000;
+    const ahrZones = [
+      { id: "none", label: "> 0.45", name: "Not cheap enough", cap: 0, pace: 0 },
+      { id: "light", label: "0.40-0.45", name: "Light value", cap: 0.15, pace: 0.025 },
+      { id: "main", label: "0.35-0.40", name: "Main value", cap: 0.40, pace: 0.05 },
+      { id: "deep", label: "0.30-0.35", name: "Deep value", cap: 0.70, pace: 0.075 },
+      { id: "extreme", label: "< 0.30", name: "Extreme value", cap: 1, pace: 0.10 }
+    ];
+    const scoreBands = [
+      { label: "0-3", name: "No confirmation", min: 0, max: 3, target: 0, pace: 0 },
+      { label: "4", name: "Divergence mode", min: 4, max: 4, target: 0.25, pace: 0.5 },
+      { label: "5-6", name: "Normal DCA", min: 5, max: 6, target: 0.5, pace: 1 },
+      { label: "7-8", name: "Accelerated DCA", min: 7, max: 8, target: 0.75, pace: 1.25 },
+      { label: "9-10", name: "Capitulation DCA", min: 9, max: 10, target: 1, pace: 1.5 }
+    ];
+    const stageOptions = [
+      { id: "light", name: "Light value" },
+      { id: "main", name: "Main value" },
+      { id: "deep", name: "Deep value" },
+      { id: "extreme", name: "Extreme value" },
+      { id: "manual", name: "Manual / recovery" }
+    ];
+
+    let dashboard = null;
+    let executions = [];
+    let activeRange = "all";
+    let selectedDate = null;
+
+    function fmtMoney(value, digits = 0) {
+      return Number.isFinite(value) ? (digits === 2 ? money2.format(value) : money0.format(value)) : "--";
+    }
+
+    function fmtNum(value, digits = 2) {
+      return Number.isFinite(value) ? Number(value).toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits }) : "--";
+    }
+
+    function fmtPct(value, digits = 1) {
+      return Number.isFinite(value) ? `${(value * 100).toFixed(digits)}%` : "--";
+    }
+
+    function totalBudget() {
+      const value = Number($("totalBudget")?.value);
+      return Number.isFinite(value) && value > 0 ? value : defaultBudget;
+    }
+
+    function loadBudget() {
+      try {
+        const saved = Number(localStorage.getItem(budgetKey));
+        $("totalBudget").value = Number.isFinite(saved) && saved > 0 ? saved : defaultBudget;
+      } catch {
+        $("totalBudget").value = defaultBudget;
+      }
+    }
+
+    function saveBudget() {
+      try {
+        localStorage.setItem(budgetKey, String(totalBudget()));
+      } catch {
+        // ponytail: local persistence is optional; the input still works for this session.
+      }
+    }
+
+    function ahrZoneFor(value) {
+      if (!Number.isFinite(value)) return null;
+      if (value > 0.45) return ahrZones[0];
+      if (value > 0.40) return ahrZones[1];
+      if (value > 0.35) return ahrZones[2];
+      if (value > 0.30) return ahrZones[3];
+      return ahrZones[4];
+    }
+
+    function scoreBandFor(score) {
+      if (!Number.isFinite(score)) return null;
+      return scoreBands.find((band) => score >= band.min && score <= band.max) || scoreBands[0];
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#039;"
+      }[char]));
+    }
+
+    function localDateTimeValue(date = new Date()) {
+      const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+      return local.toISOString().slice(0, 16);
+    }
+
+    async function apiJson(path, options = {}) {
+      const res = await fetch(path, { cache: "no-store", ...options });
+      const text = await res.text();
+      const body = text ? JSON.parse(text) : null;
+      if (!res.ok) {
+        const error = new Error(body?.error || res.statusText);
+        error.body = body;
+        throw error;
+      }
+      return body;
+    }
+
+    async function loadData(refresh = false) {
+      $("refreshBtn").disabled = true;
+      $("dataState").textContent = refresh ? "Refreshing" : "Loading";
+      $("dataState").className = "pill warn";
+      try {
+        dashboard = refresh
+          ? await apiJson("/api/refresh", { method: "POST" })
+          : await apiJson("/api/data");
+        setStatePill();
+      } catch (error) {
+        if (error.body?.cached) {
+          dashboard = error.body.cached;
+          $("dataState").textContent = "Using cache";
+          $("dataState").className = "pill warn";
+        } else {
+          $("dataState").textContent = "Data error";
+          $("dataState").className = "pill bad";
+          throw error;
+        }
+      } finally {
+        $("refreshBtn").disabled = false;
+      }
+      renderAll();
+    }
+
+    async function loadExecutions() {
+      executions = await apiJson("/api/executions");
+      if (dashboard) renderSizing();
+      renderExecutionState();
+      if (dashboard && !$("tradeUsdt").matches(":focus")) {
+        const sizing = currentSizing();
+        $("tradeUsdt").value = sizing?.buyUsdt > 0 ? sizing.buyUsdt.toFixed(2) : "";
+      }
+    }
+
+    function setStatePill() {
+      const status = dashboard?.meta?.status;
+      $("dataState").textContent = status === "ok" ? "Fresh cache" : "Partial cache";
+      $("dataState").className = status === "ok" ? "pill good" : "pill warn";
+      $("lastUpdated").textContent = dashboard?.meta?.refreshed_at
+        ? new Date(dashboard.meta.refreshed_at).toLocaleString()
+        : "No cache";
+    }
+
+    function seriesForRange() {
+      const series = dashboard?.series || [];
+      if (activeRange === "all") return series;
+      return series.slice(-Number(activeRange));
+    }
+
+    function latestPoint() {
+      const series = seriesForRange();
+      if (!series.length) return null;
+      if (selectedDate) {
+        return series.find((point) => point.date === selectedDate) || series[series.length - 1];
+      }
+      return series[series.length - 1];
+    }
+
+    function xScale(series, width, pad) {
+      const dates = series.map((point) => new Date(point.date).getTime());
+      const min = Math.min(...dates);
+      const max = Math.max(...dates);
+      return (date) => {
+        if (max === min) return pad.left;
+        return pad.left + (new Date(date).getTime() - min) / (max - min) * (width - pad.left - pad.right);
+      };
+    }
+
+    function yScale(values, height, pad) {
+      const clean = values.filter(Number.isFinite);
+      const rawMin = Math.min(...clean);
+      const rawMax = Math.max(...clean);
+      const span = rawMax - rawMin || Math.max(1, Math.abs(rawMax));
+      const min = rawMin - span * 0.08;
+      const max = rawMax + span * 0.08;
+      return {
+        min,
+        max,
+        y(value) {
+          return pad.top + (max - value) / (max - min) * (height - pad.top - pad.bottom);
+        }
+      };
+    }
+
+    function linePath(series, key, x, y) {
+      let path = "";
+      let open = false;
+      for (const point of series) {
+        const value = point[key];
+        if (!Number.isFinite(value)) {
+          open = false;
+          continue;
+        }
+        path += `${open ? "L" : "M"}${x(point.date).toFixed(1)},${y(value).toFixed(1)} `;
+        open = true;
+      }
+      return path.trim();
+    }
+
+    function nearestByX(series, xValue, x) {
+      let best = series[0];
+      let bestDist = Infinity;
+      for (const point of series) {
+        const dist = Math.abs(x(point.date) - xValue);
+        if (dist < bestDist) {
+          best = point;
+          bestDist = dist;
+        }
+      }
+      return best;
+    }
+
+    function renderPriceChart() {
+      const box = $("priceChart");
+      const series = seriesForRange().filter((point) => Number.isFinite(point.price));
+      if (!series.length) {
+        box.innerHTML = "";
+        return;
+      }
+
+      const width = Math.max(340, Math.floor(box.getBoundingClientRect().width || 900));
+      const height = Math.max(550, Math.floor(box.getBoundingClientRect().height || 550));
+      const pad = { top: 22, right: 66, bottom: 38, left: 72 };
+      const ladderTargets = (dashboard.ladder || []).map((level) => level.target).filter(Number.isFinite);
+      const values = series.flatMap((point) => [point.price, point.wma200]).filter(Number.isFinite).concat(ladderTargets);
+      const x = xScale(series, width, pad);
+      const ys = yScale(values, height, pad);
+      const chosen = latestPoint();
+      const selectedX = chosen ? x(chosen.date) : null;
+
+      const grid = [0, .25, .5, .75, 1].map((step) => {
+        const y = pad.top + step * (height - pad.top - pad.bottom);
+        const value = ys.max - step * (ys.max - ys.min);
+        return `<line x1="${pad.left}" x2="${width - pad.right}" y1="${y}" y2="${y}" stroke="var(--line)" />
+          <text x="${pad.left - 10}" y="${y + 4}" text-anchor="end" fill="var(--muted)" font-size="11">${fmtMoney(value)}</text>`;
+      }).join("");
+
+      const dateLabels = [series[0], series[Math.floor(series.length / 2)], series[series.length - 1]].map((point) => `
+        <text x="${x(point.date)}" y="${height - 12}" text-anchor="middle" fill="var(--muted)" font-size="11">${point.date.slice(0, 7)}</text>
+      `).join("");
+
+      const ladder = (dashboard.ladder || []).filter((level) => Number.isFinite(level.target)).map((level) => {
+        const y = ys.y(level.target);
+        if (y < pad.top || y > height - pad.bottom) return "";
+        const offset = Number.isFinite(level.offset) ? level.offset : level.multiple - 1;
+        return `<line x1="${pad.left}" x2="${width - pad.right}" y1="${y}" y2="${y}" stroke="var(--warn)" stroke-dasharray="5 5" />
+          <text x="${width - pad.right + 8}" y="${y + 4}" fill="var(--muted)" font-size="11">${level.label} ${fmtPct(offset, 0)}</text>`;
+      }).join("");
+
+      box.innerHTML = `
+        <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">
+          <rect width="${width}" height="${height}" fill="var(--surface)" />
+          ${grid}
+          ${dateLabels}
+          ${ladder}
+          <path d="${linePath(series, "wma200", x, ys.y.bind(ys))}" fill="none" stroke="var(--wma)" stroke-width="2.2" vector-effect="non-scaling-stroke" />
+          <path d="${linePath(series, "price", x, ys.y.bind(ys))}" fill="none" stroke="var(--price)" stroke-width="2.8" vector-effect="non-scaling-stroke" />
+          ${selectedX ? `<line x1="${selectedX}" x2="${selectedX}" y1="${pad.top}" y2="${height - pad.bottom}" stroke="var(--ink)" opacity=".28" />` : ""}
+        </svg>
+      `;
+
+      box.onpointermove = (event) => {
+        const rect = box.getBoundingClientRect();
+        const point = nearestByX(series, event.clientX - rect.left, x);
+        selectedDate = point.date;
+        renderReadout();
+        renderPriceChart();
+      };
+      box.onpointerleave = () => {
+        selectedDate = null;
+        renderReadout();
+        renderPriceChart();
+      };
+    }
+
+    function renderReadout() {
+      const point = latestPoint();
+      const latest = dashboard?.latest || {};
+      const rows = [
+        ["Date", point?.date || latest.date || "--"],
+        ["Price", fmtMoney(point?.price ?? latest.spot, 2)],
+        ["200WMA", fmtMoney(point?.wma200 ?? latest.wma200)],
+        ["AHR999", fmtNum(point?.ahr999 ?? latest.ahr999, 3)],
+        ["MVRV Z", fmtNum(point?.mvrv_z ?? latest.mvrv_z, 3)],
+        ["NUPL", fmtNum(point?.nupl ?? latest.nupl, 3)],
+        ["Fear", fmtNum(point?.fear ?? latest.fear, 0)]
+      ];
+      $("chartReadout").innerHTML = rows.map(([label, value]) => `
+        <div class="readout-item">
+          <span class="muted">${label}</span>
+          <strong>${value}</strong>
+        </div>
+      `).join("");
+    }
+
+    function renderMiniChart(config) {
+      const series = seriesForRange();
+      const values = series.map((point) => point[config.key]).filter(Number.isFinite);
+      const latest = dashboard.latest[config.key];
+      const pass = Number.isFinite(latest) ? latest <= config.threshold : null;
+      const status = pass === true ? "pass" : pass === false ? "fail" : "unknown";
+      if (!values.length) {
+        return `<div class="mini">
+          <div class="mini-head"><span class="label">${config.label}</span><span class="mini-value">--</span></div>
+          <div class="empty">No Glassnode data</div>
+        </div>`;
+      }
+      const width = 520;
+      const height = 110;
+      const pad = { top: 12, right: 12, bottom: 20, left: 42 };
+      const x = xScale(series, width, pad);
+      const ys = yScale(values.concat([config.threshold]), height, pad);
+      const thresholdY = ys.y(config.threshold);
+      return `<div class="mini">
+        <div class="mini-head">
+          <span class="label">${config.label}</span>
+          <span class="mini-value ${status}">${config.format(latest)}</span>
+        </div>
+        <div class="mini-chart">
+          <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">
+            <rect width="${width}" height="${height}" fill="var(--surface)" />
+            <line x1="${pad.left}" x2="${width - pad.right}" y1="${thresholdY}" y2="${thresholdY}" stroke="var(--bad)" stroke-dasharray="4 4" />
+            <text x="${pad.left - 8}" y="${thresholdY + 4}" text-anchor="end" fill="var(--muted)" font-size="11">${config.format(config.threshold)}</text>
+            <path d="${linePath(series, config.key, x, ys.y.bind(ys))}" fill="none" stroke="${config.color}" stroke-width="2.2" vector-effect="non-scaling-stroke" />
+          </svg>
+        </div>
+      </div>`;
+    }
+
+    function renderSummary() {
+      const latest = dashboard.latest;
+      const score = dashboard.score;
+      $("summary").innerHTML = `
+        <div class="metric">
+          <div class="label">${dashboard.meta.symbol} spot</div>
+          <div class="value">${fmtMoney(latest.spot, 2)}</div>
+          <div class="sub">24h ${fmtPct(latest.change_24h)} · vs 200WMA ${fmtPct(latest.price_vs_wma)}</div>
+        </div>
+        <div class="metric score-card">
+          <div class="score-box">
+            <div>
+              <div class="score-main">${score.score}/10</div>
+              <div class="score-sub">${score.known}/5 known</div>
+            </div>
+          </div>
+          <div>
+            <div class="label">Active instruction</div>
+            <h3>${score.action}</h3>
+            <p class="muted">${score.detail}</p>
+          </div>
+        </div>
+        <div class="metric">
+          <div class="label">Market context</div>
+          <div class="value">${fmtPct(latest.ath_drawdown)}</div>
+          <div class="sub">ATH drawdown · 24h range ${fmtMoney(latest.low_24h)} to ${fmtMoney(latest.high_24h)}</div>
+        </div>
+      `;
+    }
+
+    function renderIndicators() {
+      $("indicatorGrid").innerHTML = metricConfigs.map(renderMiniChart).join("");
+    }
+
+    function ruleValue(rule) {
+      if (rule.key === "price_wma") return fmtPct(dashboard.latest.price_vs_wma);
+      if (rule.key === "ath_drawdown") return fmtPct(rule.value);
+      if (rule.key === "fear") return fmtNum(rule.value, 0);
+      return fmtNum(rule.value, 3);
+    }
+
+    function renderRules() {
+      $("scoreStatus").textContent = `${dashboard.score.known}/5 metrics known`;
+      $("ruleList").innerHTML = dashboard.score.rules.map((rule) => {
+        const cls = rule.pass === true ? "pass" : rule.pass === false ? "fail" : "unknown";
+        const state = rule.points == null ? "Unknown" : `+${rule.points}`;
+        return `<div class="rule ${cls}">
+          <span class="dot" aria-hidden="true"></span>
+          <span>${rule.label}</span>
+          <span class="rule-value">${ruleValue(rule)}</span>
+          <span class="rule-state">${state}</span>
+        </div>`;
+      }).join("");
+    }
+
+    function portfolioTotals() {
+      const spent = executions.reduce((sum, row) => sum + Number(row.usdt || 0), 0);
+      const btc = executions.reduce((sum, row) => sum + Number(row.btc || 0), 0);
+      const value = btc && dashboard?.latest?.spot ? btc * dashboard.latest.spot : 0;
+      return { spent, btc, value, avg: btc ? spent / btc : null, pnl: value - spent };
+    }
+
+    function currentSizing() {
+      const total = portfolioTotals();
+      const budget = totalBudget();
+      const zone = ahrZoneFor(Number(dashboard?.latest?.ahr999));
+      const band = scoreBandFor(Number(dashboard?.score?.score));
+      if (!zone || !band || !budget) return null;
+      const deployedPct = total.spent / budget;
+      const targetPct = zone.cap * band.target;
+      const pacePct = zone.pace * band.pace;
+      const remainingPct = Math.max(0, targetPct - deployedPct);
+      const buyPct = Math.max(0, Math.min(remainingPct, pacePct));
+      return {
+        budget,
+        total,
+        zone,
+        band,
+        deployedPct,
+        targetPct,
+        pacePct,
+        remainingPct,
+        buyPct,
+        targetUsdt: budget * targetPct,
+        paceUsdt: budget * pacePct,
+        remainingUsdt: budget * remainingPct,
+        buyUsdt: budget * buyPct
+      };
+    }
+
+    function renderSizing() {
+      const sizing = currentSizing();
+      $("budgetPill").textContent = `${fmtMoney(totalBudget())} budget`;
+      if (!sizing) {
+        $("decisionGrid").innerHTML = `<div class="empty full">Need AHR999 and confirmation score before sizing a buy.</div>`;
+        $("decisionFormula").textContent = "Refresh data, then apply the DCA matrix.";
+        return;
+      }
+      const tiles = [
+        ["This week", fmtMoney(sizing.buyUsdt, 2), `${fmtPct(sizing.buyPct, 2)} of total budget`, true],
+        ["Target cap", fmtMoney(sizing.targetUsdt, 2), `${fmtPct(sizing.targetPct, 2)} max deployed`],
+        ["Already deployed", fmtMoney(sizing.total.spent, 2), `${fmtPct(sizing.deployedPct, 2)} of total budget`],
+        ["Remaining allowed", fmtMoney(sizing.remainingUsdt, 2), `${fmtPct(sizing.remainingPct, 2)} before target cap`]
+      ];
+      $("decisionGrid").innerHTML = tiles.map(([label, value, sub, primary]) => `
+        <div class="decision-tile${primary ? " is-primary" : ""}">
+          <div class="label">${label}</div>
+          <div class="value">${value}</div>
+          <div class="sub">${sub}</div>
+        </div>
+      `).join("");
+      $("decisionFormula").textContent = `AHR999 ${fmtNum(dashboard.latest.ahr999, 3)} -> ${sizing.zone.name} (${fmtPct(sizing.zone.cap, 1)} cap, ${fmtPct(sizing.zone.pace, 1)} weekly) · score ${dashboard.score.score}/10 -> ${sizing.band.name} (${fmtPct(sizing.band.target, 0)} target, ${sizing.band.pace}x pace).`;
+    }
+
+    function renderMatrix() {
+      const budget = totalBudget();
+      const currentZone = ahrZoneFor(Number(dashboard?.latest?.ahr999));
+      const currentBand = scoreBandFor(Number(dashboard?.score?.score));
+      $("matrixBudget").textContent = `${fmtMoney(budget)} budget`;
+      $("dcaMatrixRows").innerHTML = ahrZones.map((zone) => `
+        <tr class="${zone.id === currentZone?.id ? "is-current-row" : ""}">
+          <td><strong>${zone.name}</strong><div class="muted">${zone.label} · base ${fmtPct(zone.cap, 1)} cap / ${fmtPct(zone.pace, 1)} weekly</div></td>
+          ${scoreBands.map((band) => {
+            const target = budget * zone.cap * band.target;
+            const weekly = budget * zone.pace * band.pace;
+            const currentCol = band === currentBand;
+            const currentCell = currentCol && zone.id === currentZone?.id;
+            return `<td class="matrix-cell${currentCol ? " is-current-col" : ""}${currentCell ? " is-current-cell" : ""}">${target || weekly ? `<strong>${fmtMoney(target, 2)}</strong><span>${fmtMoney(weekly, 2)} / week</span>` : `<span>No buy</span>`}</td>`;
+          }).join("")}
+        </tr>
+      `).join("");
+      const currentBandIndex = scoreBands.indexOf(currentBand);
+      document.querySelectorAll(".matrix-table thead th").forEach((th, index) => {
+        th.classList.toggle("is-current", currentBandIndex >= 0 && index === currentBandIndex + 1);
+      });
+    }
+
+    function renderPortfolioProgress() {
+      const total = portfolioTotals();
+      const budget = totalBudget();
+      const pct = budget ? Math.max(0, Math.min(100, total.spent / budget * 100)) : 0;
+      const pnlPct = total.spent ? fmtPct(total.pnl / total.spent, 2) : "--";
+      $("portfolioSummary").textContent = `${fmtMoney(total.spent, 2)} deployed of ${fmtMoney(budget)}`;
+      $("portfolioPanel").innerHTML = `
+        <div>
+          <div class="progress" aria-label="Total deployed"><span style="--value:${pct}%"></span></div>
+          <p class="muted" style="margin-top:8px">${fmtPct(total.spent / budget, 2)} deployed · ${fmtMoney(Math.max(0, budget - total.spent), 2)} unspent budget</p>
+        </div>
+        <div class="portfolio-stats">
+          <div class="portfolio-stat"><div class="label">BTC held</div><strong>${btcFmt.format(total.btc)}</strong></div>
+          <div class="portfolio-stat"><div class="label">Average cost</div><strong>${fmtMoney(total.avg, 2)}</strong></div>
+          <div class="portfolio-stat"><div class="label">Current value</div><strong>${fmtMoney(total.value, 2)}</strong></div>
+          <div class="portfolio-stat"><div class="label">Unrealized P/L</div><strong class="${total.pnl >= 0 ? "pass" : "fail"}">${fmtMoney(total.pnl, 2)} (${pnlPct})</strong></div>
+        </div>
+      `;
+    }
+
+    function renderLadder() {
+      $("ladderRows").innerHTML = (dashboard.ladder || []).map((level) => `
+        <tr>
+          <td>${level.label}</td>
+          <td class="num">${fmtMoney(level.target)}</td>
+          <td class="num">${fmtPct(Number.isFinite(level.offset) ? level.offset : level.multiple - 1, 0)}</td>
+        </tr>
+      `).join("");
+    }
+
+    function renderExecutionState() {
+      if (!dashboard) return;
+      renderPortfolioProgress();
+      if (!executions.length) {
+        $("executionPanel").innerHTML = `<div class="empty">No buys recorded.</div>`;
+        return;
+      }
+      const stageName = (id) => stageOptions.find((stage) => stage.id === id)?.name || id;
+      const rows = [...executions].sort((a, b) => String(b.date).localeCompare(String(a.date))).map((row) => `
+        <tr>
+          <td>${escapeHtml(new Date(row.date).toLocaleString())}</td>
+          <td>${escapeHtml(stageName(row.bucket))}</td>
+          <td class="num">${fmtMoney(Number(row.usdt), 2)}</td>
+          <td class="num">${fmtMoney(Number(row.price), 2)}</td>
+          <td class="num">${btcFmt.format(Number(row.btc || 0))}</td>
+          <td>${escapeHtml(row.note)}</td>
+          <td class="num"><button class="danger" type="button" data-delete="${row.id}">Delete</button></td>
+        </tr>
+      `).join("");
+      $("executionPanel").innerHTML = `<div class="table-wrap">
+        <table>
+          <thead><tr><th>Date</th><th>Stage</th><th class="num">USDT</th><th class="num">Price</th><th class="num">BTC</th><th>Note</th><th class="num"></th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+    }
+
+    function renderTradeOptions() {
+      const selected = $("tradeBucket").value || currentSizing()?.zone.id || "manual";
+      $("tradeBucket").innerHTML = stageOptions.map((stage) => `<option value="${stage.id}">${stage.name}</option>`).join("");
+      $("tradeBucket").value = stageOptions.some((stage) => stage.id === selected) ? selected : "manual";
+    }
+
+    function renderAll() {
+      setStatePill();
+      renderTradeOptions();
+      document.querySelectorAll("[data-range]").forEach((button) => {
+        button.classList.toggle("is-active", button.dataset.range === activeRange);
+      });
+      renderSummary();
+      renderSizing();
+      renderMatrix();
+      renderPriceChart();
+      renderReadout();
+      renderIndicators();
+      renderRules();
+      renderLadder();
+      renderExecutionState();
+      $("chartWindow").textContent = `${seriesForRange().length} daily points · ${activeRange === "all" ? "full cache" : activeRange + " days"}`;
+      if (!$("tradePrice").value && dashboard.latest.spot) $("tradePrice").value = dashboard.latest.spot.toFixed(2);
+      if (!$("tradeUsdt").value) {
+        const sizing = currentSizing();
+        $("tradeUsdt").value = sizing?.buyUsdt > 0 ? sizing.buyUsdt.toFixed(2) : "";
+      }
+    }
+
+    async function recordTrade(event) {
+      event.preventDefault();
+      const payload = {
+        date: new Date($("tradeDate").value).toISOString(),
+        bucket: $("tradeBucket").value,
+        usdt: Number($("tradeUsdt").value),
+        price: Number($("tradePrice").value),
+        btc: Number($("tradeBtc").value || 0),
+        fee: Number($("tradeFee").value || 0),
+        note: $("tradeNote").value.trim()
+      };
+      await apiJson("/api/executions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      resetTradeForm();
+      await loadExecutions();
+    }
+
+    function resetTradeForm() {
+      const sizing = currentSizing();
+      $("tradeDate").value = localDateTimeValue();
+      $("tradeBucket").value = sizing?.zone?.id && sizing.zone.id !== "none" ? sizing.zone.id : "manual";
+      $("tradeUsdt").value = sizing?.buyUsdt > 0 ? sizing.buyUsdt.toFixed(2) : "";
+      $("tradeBtc").value = "";
+      $("tradeFee").value = "0";
+      $("tradeNote").value = "";
+      if (dashboard?.latest?.spot) $("tradePrice").value = dashboard.latest.spot.toFixed(2);
+    }
+
+    function exportCsv() {
+      const header = ["date", "stage", "usdt", "price", "btc", "fee", "note"];
+      const lines = [header.join(",")].concat(executions.map((row) => header.map((key) => {
+        const value = key === "stage" ? row.bucket : row[key];
+        return `"${String(value ?? "").replaceAll("\"", "\"\"")}"`;
+      }).join(",")));
+      const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "btc-dca-executions.csv";
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function bindEvents() {
+      const updateBudget = () => {
+        saveBudget();
+        if (!dashboard) return;
+        renderSummary();
+        renderSizing();
+        renderMatrix();
+        renderPortfolioProgress();
+        if (!$("tradeUsdt").matches(":focus")) {
+          const sizing = currentSizing();
+          $("tradeUsdt").value = sizing?.buyUsdt > 0 ? sizing.buyUsdt.toFixed(2) : "";
+        }
+      };
+      $("refreshBtn").addEventListener("click", () => loadData(true));
+      $("tradeForm").addEventListener("submit", recordTrade);
+      $("fillMarket").addEventListener("click", () => {
+        if (dashboard?.latest?.spot) $("tradePrice").value = dashboard.latest.spot.toFixed(2);
+      });
+      $("totalBudget").addEventListener("input", updateBudget);
+      $("totalBudget").addEventListener("change", updateBudget);
+      $("rangeControls").addEventListener("click", (event) => {
+        const range = event.target?.dataset?.range;
+        if (!range) return;
+        activeRange = range;
+        selectedDate = null;
+        renderAll();
+      });
+      $("executionPanel").addEventListener("click", async (event) => {
+        const id = event.target?.dataset?.delete;
+        if (!id) return;
+        await apiJson(`/api/executions/${id}`, { method: "DELETE" });
+        await loadExecutions();
+      });
+      $("exportCsv").addEventListener("click", exportCsv);
+      addEventListener("resize", () => {
+        if (dashboard) renderPriceChart();
+      });
+    }
+
+    async function init() {
+      loadBudget();
+      bindEvents();
+      resetTradeForm();
+      try {
+        await loadData(false);
+        await loadExecutions();
+      } catch (error) {
+        $("dataState").textContent = "Server offline";
+        $("dataState").className = "pill bad";
+        $("summary").innerHTML = `<div class="metric"><div class="label">Python server</div><div class="value">Offline</div><div class="sub">${escapeHtml(error.message)}</div></div>`;
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>

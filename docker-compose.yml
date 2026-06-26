@@ -1,0 +1,11 @@
+services:
+  btc-dca:
+    build: .
+    env_file:
+      - path: .env.example
+      - path: .env
+        required: false
+    ports:
+      - "127.0.0.1:${BTC_DCA_HOST_PORT:-8082}:8765"
+    volumes:
+      - ./data:/app/data
