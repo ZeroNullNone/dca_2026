@@ -202,6 +202,12 @@ def latest_non_null(series: list[dict], key: str):
     return None
 
 
+def latest_sum(series: list[dict], key: str, days: int) -> float | None:
+    values = [point.get(key) for point in series[-days:]]
+    clean = [value for value in values if isinstance(value, (int, float)) and math.isfinite(value)]
+    return sum(clean) if clean else None
+
+
 def value_map(rows: list[dict]) -> dict[str, float]:
     mapped = {}
     for row in rows:
@@ -319,10 +325,17 @@ def build_dashboard_data() -> dict:
     glassnode_maps: dict[str, dict[str, float]] = {}
     metric_paths = {
         "mvrv_z": config.get("GLASSNODE_MVRV_Z_PATH", "/v1/metrics/market/mvrv_z_score"),
+        "mvrv": config.get("GLASSNODE_MVRV_PATH", "/v1/metrics/market/mvrv"),
+        "sth_mvrv": config.get("GLASSNODE_STH_MVRV_PATH", "/v1/metrics/market/mvrv_less_155"),
+        "lth_mvrv": config.get("GLASSNODE_LTH_MVRV_PATH", "/v1/metrics/market/mvrv_more_155"),
         "nupl": config.get("GLASSNODE_NUPL_PATH", "/v1/metrics/indicators/net_unrealized_profit_loss"),
         "puell": config.get("GLASSNODE_PUELL_PATH", "/v1/metrics/indicators/puell_multiple"),
+        "exchange_net_flow": config.get("GLASSNODE_EXCHANGE_NET_FLOW_PATH", "/v1/metrics/transactions/transfers_volume_exchanges_net"),
     }
     for key, path in metric_paths.items():
+        if not path:
+            glassnode_maps[key] = {}
+            continue
         try:
             glassnode_maps[key] = value_map(glassnode_metric(config, path, since_s, until_s))
         except Exception as exc:
@@ -352,14 +365,25 @@ def build_dashboard_data() -> dict:
             "ahr999": ahr999_value(row["price"], dma200[idx], row["date"]),
             "ath_drawdown": row["price"] / ath - 1 if ath else None,
             "mvrv_z": glassnode_maps["mvrv_z"].get(row["date"]),
+            "mvrv": glassnode_maps["mvrv"].get(row["date"]),
+            "sth_mvrv": glassnode_maps["sth_mvrv"].get(row["date"]),
+            "lth_mvrv": glassnode_maps["lth_mvrv"].get(row["date"]),
             "nupl": glassnode_maps["nupl"].get(row["date"]),
             "puell": glassnode_maps["puell"].get(row["date"]),
             "fear": fear_map.get(row["date"]),
+            "exchange_net_flow": glassnode_maps["exchange_net_flow"].get(row["date"]),
         }
+        if point.get("sth_mvrv"):
+            point["sth_cost"] = row["price"] / point["sth_mvrv"]
+        if point.get("lth_mvrv"):
+            point["lth_cost"] = row["price"] / point["lth_mvrv"]
+        if point.get("exchange_net_flow") is not None:
+            point["exchange_net_flow_usd"] = point["exchange_net_flow"] * row["price"]
         series.append(point)
 
     latest = {key: latest_non_null(series, key) for key in (
-        "price", "wma200", "dma200", "ahr999", "ath_drawdown", "mvrv_z", "nupl", "puell", "fear"
+        "price", "wma200", "dma200", "ahr999", "ath_drawdown", "mvrv_z", "nupl", "puell", "fear",
+        "mvrv", "sth_mvrv", "lth_mvrv", "exchange_net_flow", "exchange_net_flow_usd", "sth_cost", "lth_cost"
     )}
     latest.update(
         {
@@ -376,6 +400,8 @@ def build_dashboard_data() -> dict:
         latest["ahr999"] = ahr999_value(latest["spot"], latest["dma200"], latest.get("date"))
     if latest.get("wma200"):
         latest["price_vs_wma"] = latest["spot"] / latest["wma200"] - 1
+    latest["exchange_net_flow_30d"] = latest_sum(series, "exchange_net_flow", 30)
+    latest["exchange_net_flow_30d_usd"] = latest_sum(series, "exchange_net_flow_usd", 30)
 
     ladder = reference_ladder(latest)
 
@@ -520,6 +546,7 @@ class Handler(SimpleHTTPRequestHandler):
 def self_check() -> None:
     assert rolling_mean([1, 2, 3], 2) == [None, 1.5, 2.5]
     assert round(ahr999_value(20_000, 25_000, "2022-12-31"), 3) == 0.361
+    assert latest_sum([{"v": 1}, {"v": None}, {"v": 2}], "v", 2) == 2
     score = score_payload(
         {"price": 60_000, "wma200": 62_000, "ahr999": 0.4, "mvrv_z": 0.2, "nupl": 0.1, "puell": 0.5, "fear": 20, "ath_drawdown": -0.5}
     )

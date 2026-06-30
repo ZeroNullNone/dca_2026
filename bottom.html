@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BTC Bottom Signal</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #f4f4f2;
+      --paper-2: #eaeae8;
+      --surface: #fbfbfa;
+      --surface-2: #f7f7f5;
+      --ink: #1a1814;
+      --ink-2: #3d3830;
+      --muted: #625c51;
+      --line: #1a1814;
+      --line-soft: rgba(26, 24, 20, .24);
+      --accent: #d64933;
+      --accent-soft: #f8ded8;
+      --good: #2e8b6b;
+      --good-soft: #dceee7;
+      --warn: #9a6507;
+      --warn-soft: #f6e8bb;
+      --bad: #b83e2f;
+      --bad-soft: #f3d8d4;
+      --price: #0f6f8f;
+      --mvrv: #7a5fbd;
+      --shadow: 6px 6px 0 rgba(26, 24, 20, .12);
+      --shadow-tight: 3px 3px 0 rgba(26, 24, 20, .12);
+      --head: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      --mono: "SFMono-Regular", Consolas, ui-monospace, monospace;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font: 13px/1.45 var(--mono); letter-spacing: 0; overflow-x: hidden; }
+    .shell { width: min(1440px, 100%); margin: 0 auto; padding: 20px; }
+    .top { position: sticky; top: 0; z-index: 20; display: grid; grid-template-columns: minmax(280px, 1fr) auto; gap: 14px; align-items: center; margin: -20px -20px 16px; padding: 12px 20px; border-bottom: 1.5px solid var(--line); background: var(--paper); }
+    .brand { display: flex; flex-wrap: wrap; gap: 12px; align-items: baseline; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: flex-end; }
+    h1, h2, h3, p { margin: 0; }
+    h1 { font: 800 1rem var(--head); }
+    h2 { font: 760 .92rem var(--head); }
+    h3 { font: 760 .86rem var(--head); }
+    button { min-height: 40px; border: 1.5px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink); padding: 0 12px; font: 650 .82rem var(--head); cursor: pointer; }
+    button:hover { background: var(--paper-2); }
+    button:disabled { cursor: not-allowed; opacity: .58; }
+    button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .primary { background: var(--ink); border-color: var(--ink); color: var(--paper); font-weight: 760; }
+    .muted { color: var(--muted); }
+    .grid-top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 1fr); gap: 16px; margin-bottom: 22px; }
+    .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+    .panel { border: 1.5px solid var(--line); border-radius: 8px; background: var(--surface); box-shadow: var(--shadow-tight); overflow: hidden; }
+    .hero, .gauge-panel { min-height: 220px; padding: 22px; display: grid; align-content: center; }
+    .label { color: var(--muted); font: 700 .75rem var(--head); letter-spacing: .02em; }
+    .price { margin-top: 8px; font: 850 clamp(2.2rem, 4.4vw, 3.7rem)/.95 var(--head); }
+    .down { color: var(--bad); }
+    .up { color: var(--good); }
+    .gauge-panel { text-align: center; align-content: start; }
+    .gauge-wrap { position: relative; width: min(300px, 100%); margin: 12px auto 0; aspect-ratio: 2 / 1.1; }
+    .gauge-wrap svg { width: 100%; height: 100%; overflow: visible; }
+    .gauge-value { position: absolute; inset: 36% 0 auto; font: 850 2.4rem/1 var(--head); }
+    .gauge-sub { position: absolute; inset: 58% 0 auto; color: var(--muted); font-size: .9rem; }
+    .pill, .badge { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; border: 1.5px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink-2); padding: 3px 10px; font: 650 .82rem var(--head); white-space: nowrap; }
+    .pill.good { background: var(--good-soft); color: var(--good); border-color: var(--good); }
+    .pill.warn { background: var(--warn-soft); color: var(--warn); border-color: var(--warn); }
+    .pill.bad { background: var(--bad-soft); color: var(--bad); border-color: var(--bad); }
+    .section-title { margin: 8px 0 14px; font: 800 .95rem var(--head); }
+    .card { min-height: 282px; padding: 14px; }
+    .card-head { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+    .state { color: var(--good); font: 780 .78rem var(--head); white-space: nowrap; }
+    .state.warn { color: var(--warn); }
+    .state.bad { color: var(--bad); }
+    .score { margin-top: 8px; color: var(--good); font: 850 2rem/1 var(--head); }
+    .score small { color: var(--muted); font-size: .85rem; }
+    .bar { height: 6px; margin: 10px 0 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+    .bar span { display: block; height: 100%; width: var(--w); background: var(--c, var(--good)); border-radius: inherit; }
+    .range { height: 8px; border-radius: 999px; background: linear-gradient(90deg, var(--bad), var(--warn) 42%, var(--accent) 62%, var(--bad)); position: relative; margin: 10px 0 6px; }
+    .range.good-left { background: linear-gradient(90deg, var(--good), var(--warn) 42%, var(--accent) 68%, var(--bad)); }
+    .range.flow { background: linear-gradient(90deg, var(--bad), var(--bad) 25%, var(--good) 60%, var(--good)); }
+    .pin { position: absolute; top: -3px; width: 4px; height: 14px; left: var(--x); background: var(--ink); border-radius: 4px; }
+    .kv { display: grid; gap: 6px; margin-top: 10px; color: var(--muted); }
+    .kv div { display: flex; justify-content: space-between; gap: 10px; }
+    .kv b { color: var(--ink); }
+    .spark { width: 100%; height: 58px; margin-top: 12px; }
+    .ma { padding: 18px; }
+    .ma table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    .ma td { padding: 8px 0; border-bottom: 1px dashed var(--line-soft); }
+    .ma td:last-child { text-align: right; font-weight: 800; }
+    @media (max-width: 980px) { .grid-top, .cards { grid-template-columns: 1fr; } }
+    @media (max-width: 640px) { .shell { padding: 12px; } .hero, .gauge-panel { min-height: 200px; padding: 16px; } }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="top">
+      <div class="brand">
+        <h1>BTC Bottom Signal</h1>
+        <span class="muted" id="date">Loading data</span>
+      </div>
+      <div class="toolbar">
+        <span class="pill" id="dataState" aria-live="polite">Loading</span>
+        <button type="button" onclick="location.href='index.html'">DCA Dashboard</button>
+        <button class="primary" id="refreshBtn" type="button">Refresh data</button>
+      </div>
+    </header>
+
+    <section class="grid-top">
+      <section class="panel hero" id="hero"></section>
+      <section class="panel gauge-panel">
+        <h2 class="muted" style="text-align:left">Total Score</h2>
+        <div class="gauge-wrap" id="gauge"></div>
+        <div id="verdict"></div>
+      </section>
+    </section>
+
+    <div class="section-title">5 Signals + Moving Average Reference</div>
+    <section class="cards" id="cards"></section>
+  </main>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const money0 = new Intl.NumberFormat(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+    const money2 = new Intl.NumberFormat(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 2, maximumFractionDigits: 2 });
+    const fmtMoney = (v, d = 0) => Number.isFinite(v) ? (d === 2 ? money2 : money0).format(v) : "--";
+    const fmtNum = (v, d = 1) => Number.isFinite(v) ? Number(v).toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d }) : "--";
+    const fmtPct = (v, d = 1) => Number.isFinite(v) ? `${(v * 100).toFixed(d)}%` : "--";
+    const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+    const apiTokenKey = "btcDcaApiToken";
+
+    async function apiJson(path, options = {}) {
+      const token = localStorage.getItem(apiTokenKey);
+      const headers = { ...(options.headers || {}) };
+      if (token) headers["X-DCA-Token"] = token;
+      const res = await fetch(path, { cache: "no-store", ...options, headers });
+      const text = await res.text();
+      const body = text ? JSON.parse(text) : null;
+      if (res.status === 401) {
+        const nextToken = prompt("API token");
+        if (nextToken) {
+          localStorage.setItem(apiTokenKey, nextToken.trim());
+          return apiJson(path, options);
+        }
+      }
+      if (!res.ok) {
+        const error = new Error(body?.error || res.statusText);
+        error.body = body;
+        throw error;
+      }
+      return body;
+    }
+
+    function movingAverage(series, days) {
+      const rows = series.filter((p) => Number.isFinite(p.price)).slice(-days);
+      return rows.length === days ? rows.reduce((sum, p) => sum + p.price, 0) / days : null;
+    }
+
+    function spark(series, key, color = "var(--good)") {
+      const rows = series.slice(-90).filter((p) => Number.isFinite(p[key]));
+      if (rows.length < 2) return "";
+      const vals = rows.map((p) => p[key]);
+      const min = Math.min(...vals);
+      const max = Math.max(...vals);
+      const path = rows.map((p, i) => {
+        const x = i / (rows.length - 1) * 100;
+        const y = 55 - ((p[key] - min) / ((max - min) || 1)) * 48;
+        return `${i ? "L" : "M"}${x.toFixed(1)},${y.toFixed(1)}`;
+      }).join(" ");
+      return `<svg class="spark" viewBox="0 0 100 60" preserveAspectRatio="none"><path d="${path}" fill="none" stroke="${color}" stroke-width="1.8" vector-effect="non-scaling-stroke"/></svg>`;
+    }
+
+    function card({ title, note, score, state, value, rangeClass = "", pin = 50, details = "", sparkHtml = "", color = "var(--good)" }) {
+      const cls = score >= 14 ? "" : score >= 8 ? " warn" : " bad";
+      return `<section class="panel card">
+        <div class="card-head"><div><h3>${title}</h3><p class="muted">${note}</p></div><span class="state${cls}">${state}</span></div>
+        <div class="score" style="color:${color}">${fmtNum(score, 1)}<small>/20</small></div>
+        <div class="bar"><span style="--w:${clamp(score / 20 * 100, 0, 100)}%;--c:${color}"></span></div>
+        <div>${value}</div>
+        <div class="range ${rangeClass}"><i class="pin" style="--x:${clamp(pin, 0, 100)}%"></i></div>
+        <div class="kv">${details}</div>
+        ${sparkHtml}
+      </section>`;
+    }
+
+    function renderGauge(score) {
+      const angle = -180 + clamp(score, 0, 100) / 100 * 180;
+      $("gauge").innerHTML = `<svg viewBox="0 0 260 150">
+        <path d="M35 125 A95 95 0 0 1 225 125" fill="none" stroke="rgba(26,24,20,.14)" stroke-width="28" />
+        <path d="M35 125 A95 95 0 0 1 225 125" fill="none" stroke="url(#g)" stroke-width="28" stroke-dasharray="${score * 2.98} 298" />
+        <defs><linearGradient id="g" x1="0" x2="1"><stop stop-color="var(--good)"/><stop offset=".55" stop-color="var(--warn)"/><stop offset="1" stop-color="var(--bad)"/></linearGradient></defs>
+        <path d="M130 125 L${130 + Math.cos(angle * Math.PI / 180) * 74} ${125 + Math.sin(angle * Math.PI / 180) * 74}" stroke="var(--ink)" stroke-width="5" stroke-linecap="round" />
+        <circle cx="130" cy="125" r="7" fill="var(--ink)" />
+        <text x="42" y="108" fill="var(--muted)" font-size="10">0</text>
+        <text x="213" y="108" fill="var(--muted)" font-size="10">100</text>
+      </svg><div class="gauge-value">${Math.round(score)}</div><div class="gauge-sub">/100</div>`;
+      const label = score >= 80 ? "Extreme value" : score >= 65 ? "Value zone" : score >= 45 ? "Watch zone" : "Not cheap";
+      $("verdict").innerHTML = `<div class="badge">${label}</div><p class="muted" style="margin-top:10px">${score >= 65 ? "DCA is allowed, but keep the sizing rules." : "Do not size up yet. Keep watching."}</p>`;
+    }
+
+    function render(data) {
+      const latest = data.latest || {};
+      const series = data.series || [];
+      const spot = latest.spot;
+      const ma120 = movingAverage(series, 120);
+      const ma200 = latest.dma200 || movingAverage(series, 200);
+      const lthGap = Number.isFinite(latest.lth_cost) ? spot / latest.lth_cost - 1 : null;
+      const sthGap = Number.isFinite(latest.sth_cost) ? spot / latest.sth_cost - 1 : null;
+      const mvrv = latest.mvrv;
+      const nupl = latest.nupl;
+      const flowUsd = latest.exchange_net_flow_30d_usd;
+      const fear = latest.fear;
+      const s1 = Number.isFinite(lthGap) ? clamp(18 - lthGap * 60, 0, 20) : 0;
+      const s2 = Number.isFinite(mvrv) ? clamp((1.8 - mvrv) / 0.8 * 20, 0, 20) : 0;
+      const s3 = Number.isFinite(nupl) ? clamp((0.38 - nupl) / 0.38 * 20, 0, 20) : 0;
+      const s4 = Number.isFinite(flowUsd) ? clamp((-flowUsd / 5_000_000_000) * 20 + 8, 0, 20) : 0;
+      const s5 = Number.isFinite(fear) ? clamp((50 - fear) / 50 * 20, 0, 20) : 0;
+      const total = s1 + s2 + s3 + s4 + s5;
+
+      $("date").textContent = `Data date ${latest.date || "--"} - Cache ${data.meta?.refreshed_at ? new Date(data.meta.refreshed_at).toLocaleString() : "--"}`;
+      $("hero").innerHTML = `<div class="label">BTC Price (USD)</div><div class="price">${fmtMoney(spot, 2)}</div>
+        <p class="${latest.change_24h >= 0 ? "up" : "down"}" style="font:800 1.1rem var(--head);margin-top:8px">${fmtPct(latest.change_24h, 2)} <span class="muted">24h</span></p>
+        <p class="muted" style="margin-top:16px">From ATH <b style="color:var(--ink)">${fmtPct(latest.ath_drawdown, 1)}</b> - 200WMA ${fmtMoney(latest.wma200)}</p>`;
+      renderGauge(total);
+      $("cards").innerHTML = [
+        card({
+          title: "S1 - LTH Holder Cost",
+          note: "Price versus long-term holder cost basis",
+          score: s1,
+          state: lthGap <= 0 ? "Undervalued" : "Above LTH cost",
+          value: `BTC <b>${fmtMoney(spot)}</b> - ${Number.isFinite(lthGap) ? (lthGap >= 0 ? "above" : "below") : "no"} LTH by ${fmtPct(Math.abs(lthGap), 1)}`,
+          rangeClass: "good-left",
+          pin: Number.isFinite(lthGap) ? clamp((lthGap + .3) / .8 * 100, 0, 100) : 50,
+          details: `<div><span>STH cost</span><b>${fmtMoney(latest.sth_cost)}</b></div><div><span>LTH cost</span><b>${fmtMoney(latest.lth_cost)}</b></div>`,
+          sparkHtml: spark(series, "lth_cost")
+        }),
+        card({
+          title: "S2 - MVRV Deviation",
+          note: "Market value versus realized value",
+          score: s2,
+          state: mvrv <= 1.2 ? "Low valuation" : "Neutral",
+          value: `Current MVRV <b>${fmtNum(mvrv, 2)}</b>`,
+          rangeClass: "good-left",
+          pin: Number.isFinite(mvrv) ? clamp((mvrv - .7) / 2.0 * 100, 0, 100) : 50,
+          details: `<div><span>STH MVRV</span><b>${fmtNum(latest.sth_mvrv, 2)}</b></div><div><span>LTH MVRV</span><b>${fmtNum(latest.lth_mvrv, 2)}</b></div>`,
+          sparkHtml: spark(series, "mvrv")
+        }),
+        card({
+          title: "S3 - Unrealized P/L",
+          note: "How much market pain is visible on-chain",
+          score: s3,
+          state: nupl <= .15 ? "Low valuation" : "Watch",
+          value: `Current NUPL <b>${fmtPct(nupl, 1)}</b>`,
+          rangeClass: "good-left",
+          pin: Number.isFinite(nupl) ? clamp((nupl + .15) / .85 * 100, 0, 100) : 50,
+          details: `<div><span>Closer to zero or negative</span><b>More bottom-like</b></div>`,
+          sparkHtml: spark(series, "nupl")
+        }),
+        card({
+          title: "S4 - Net Flow",
+          note: "Last 30 days exchange flow pressure",
+          score: s4,
+          state: flowUsd < 0 ? "Net outflow" : "Net inflow",
+          value: `Last 30D <b>${flowUsd < 0 ? "net outflow" : "net inflow"} ${fmtMoney(Math.abs(flowUsd))}</b>`,
+          rangeClass: "flow",
+          pin: Number.isFinite(flowUsd) ? clamp((flowUsd / 8_000_000_000 + .5) * 100, 0, 100) : 50,
+          details: `<div><span>BTC net change</span><b>${fmtNum(latest.exchange_net_flow_30d, 0)} BTC</b></div>`,
+          sparkHtml: spark(series, "exchange_net_flow_usd")
+        }),
+        card({
+          title: "S5 - Fear & Greed",
+          note: "Market sentiment temperature",
+          score: s5,
+          state: fear <= 25 ? "Fear" : "Neutral",
+          value: `Current index <b>${fmtNum(fear, 0)}</b>`,
+          rangeClass: "good-left",
+          pin: Number.isFinite(fear) ? clamp(fear, 0, 100) : 50,
+          details: `<div><span>0 = extreme fear</span><b>100 = extreme greed</b></div>`,
+          sparkHtml: spark(series, "fear", "var(--warn)"),
+          color: "var(--warn)"
+        }),
+        `<section class="panel ma"><h3>MA - Medium/Long-Term</h3><p class="muted">Reference only</p><table>
+          <tr><td>MA120</td><td>${fmtMoney(ma120)}</td><td class="${spot >= ma120 ? "up" : "down"}">${fmtPct(spot / ma120 - 1, 1)}</td></tr>
+          <tr><td>MA200</td><td>${fmtMoney(ma200)}</td><td class="${spot >= ma200 ? "up" : "down"}">${fmtPct(spot / ma200 - 1, 1)}</td></tr>
+          <tr><td>200WMA</td><td>${fmtMoney(latest.wma200)}</td><td class="${spot >= latest.wma200 ? "up" : "down"}">${fmtPct(spot / latest.wma200 - 1, 1)}</td></tr>
+        </table><p class="muted" style="margin-top:12px">Moving-average breaks only show cheapness. Position sizing still follows the 5 signals.</p></section>`
+      ].join("");
+    }
+
+    async function loadData(refresh = false) {
+      $("refreshBtn").disabled = true;
+      $("dataState").textContent = refresh ? "Refreshing" : "Loading";
+      $("dataState").className = "pill warn";
+      try {
+        const data = refresh ? await apiJson("/api/refresh", { method: "POST" }) : await apiJson("/api/data");
+        $("dataState").textContent = data.meta?.status === "ok" ? "Fresh cache" : "Partial cache";
+        $("dataState").className = data.meta?.status === "ok" ? "pill good" : "pill warn";
+        render(data);
+      } catch (error) {
+        if (error.body?.cached) {
+          $("dataState").textContent = "Using cache";
+          $("dataState").className = "pill warn";
+          render(error.body.cached);
+          return;
+        }
+        $("dataState").textContent = "Data error";
+        $("dataState").className = "pill bad";
+        $("hero").innerHTML = `<div class="label">Server</div><div class="price">Offline</div><p class="muted">${error.message}</p>`;
+      } finally {
+        $("refreshBtn").disabled = false;
+      }
+    }
+
+    $("refreshBtn").addEventListener("click", () => loadData(true));
+    loadData(false);
+  </script>
+</body>
+</html>

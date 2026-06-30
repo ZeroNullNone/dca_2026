@@ -998,11 +998,12 @@
         <p class="muted">Manual-refresh dashboard, spot only, no leverage.</p>
       </div>
       <div class="toolbar">
-        <label class="budget-control">Total DCA budget
+        <label class="budget-control">
           <input id="totalBudget" inputmode="decimal" type="number" min="1" step="100" value="10000">
         </label>
         <span class="pill" id="dataState" aria-live="polite">Loading</span>
         <span class="pill" id="lastUpdated">No cache</span>
+        <button type="button" onclick="location.href='bottom.html'">Bottom signal</button>
         <button class="primary" id="refreshBtn" type="button">Refresh data</button>
       </div>
     </header>
