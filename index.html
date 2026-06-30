@@ -918,19 +918,47 @@
 
       .toolbar {
         display: grid;
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(76px, 1fr) auto auto auto;
+        gap: 6px;
         width: 100%;
       }
 
       .toolbar .primary {
-        width: 100%;
+        width: auto;
+      }
+
+      .budget-control {
+        min-width: 0;
+      }
+
+      .budget-control input,
+      .topbar button {
+        min-height: 34px;
+      }
+
+      .budget-control input {
+        padding: 6px 8px;
+      }
+
+      .topbar button {
+        padding: 0 8px;
+        font-size: .76rem;
+        white-space: nowrap;
       }
 
       .pill {
         min-width: 0;
+        min-height: 34px;
         justify-content: center;
-        white-space: normal;
-        overflow-wrap: anywhere;
+        padding: 2px 8px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-size: .72rem;
+      }
+
+      #lastUpdated {
+        display: none;
       }
 
       .step-score {
@@ -963,9 +991,19 @@
       }
 
       .topbar {
-        margin: -12px -12px 12px;
-        padding: 12px;
+        gap: 7px;
+        margin: -12px -12px 10px;
+        padding: 7px 10px;
         overflow: hidden;
+      }
+
+      .topbar h1 {
+        font-size: 1rem;
+        line-height: 1.05;
+      }
+
+      .topbar p {
+        display: none;
       }
 
       .topbar > * {
@@ -1003,8 +1041,8 @@
         </label>
         <span class="pill" id="dataState" aria-live="polite">Loading</span>
         <span class="pill" id="lastUpdated">No cache</span>
-        <button type="button" onclick="location.href='bottom.html'">Bottom signal</button>
-        <button class="primary" id="refreshBtn" type="button">Refresh data</button>
+        <button type="button" onclick="location.href='bottom.html'" aria-label="Bottom signal">Bottom</button>
+        <button class="primary" id="refreshBtn" type="button" aria-label="Refresh data">Refresh</button>
       </div>
     </header>
 
@@ -1230,12 +1268,12 @@
     const btcFmt = new Intl.NumberFormat(undefined, { minimumFractionDigits: 8, maximumFractionDigits: 8 });
 
     const metricConfigs = [
-      { key: "ahr999", label: "AHR999", threshold: 0.45, color: "var(--price)", format: (v) => fmtNum(v, 3) },
-      { key: "mvrv_z", label: "MVRV Z-Score", threshold: 0.1, color: "var(--mvrv)", format: (v) => fmtNum(v, 3) },
-      { key: "nupl", label: "NUPL", threshold: 0.12, color: "var(--nupl)", format: (v) => fmtNum(v, 3) },
-      { key: "puell", label: "Puell Multiple", threshold: 0.6, color: "var(--puell)", format: (v) => fmtNum(v, 3) },
-      { key: "fear", label: "Fear & Greed", threshold: 25, color: "var(--fear)", format: (v) => fmtNum(v, 0) },
-      { key: "ath_drawdown", label: "ATH Drawdown", threshold: -0.55, color: "var(--bad)", format: (v) => fmtPct(v) }
+      { key: "ahr999", label: "AHR999", threshold: 0.45, thresholds: [0.45, 0.40, 0.35, 0.30], color: "var(--price)", format: (v) => fmtNum(v, 3) },
+      { key: "mvrv_z", label: "MVRV Z-Score", threshold: 0.1, thresholds: [0.10, -0.20], color: "var(--mvrv)", format: (v) => fmtNum(v, 3) },
+      { key: "nupl", label: "NUPL", threshold: 0.12, thresholds: [0.12, 0.0], color: "var(--nupl)", format: (v) => fmtNum(v, 3) },
+      { key: "puell", label: "Puell Multiple", threshold: 0.6, thresholds: [0.60, 0.50], color: "var(--puell)", format: (v) => fmtNum(v, 3) },
+      { key: "fear", label: "Fear & Greed", threshold: 25, thresholds: [25], color: "var(--fear)", format: (v) => fmtNum(v, 0) },
+      { key: "ath_drawdown", label: "ATH Drawdown", threshold: -0.55, thresholds: [-0.55, -0.60], color: "var(--bad)", format: (v) => fmtPct(v) }
     ];
 
     const budgetKey = "btcDcaTotalBudget";
@@ -1449,6 +1487,25 @@
       return path.trim();
     }
 
+    function thresholdLines(config, ys, width, height, pad) {
+      const thresholds = (config.thresholds || [config.threshold])
+        .filter(Number.isFinite)
+        .map((value) => ({ value, primary: value === config.threshold, y: ys.y(value) }))
+        .filter((line) => line.y >= pad.top - 1 && line.y <= height - pad.bottom + 1)
+        .sort((a, b) => a.y - b.y);
+
+      let lastLabelY = -Infinity;
+      return thresholds.map((line) => {
+        const labelY = Math.min(height - pad.bottom - 4, Math.max(pad.top + 8, Math.max(line.y + 4, lastLabelY + 12)));
+        lastLabelY = labelY;
+        const stroke = line.primary ? "var(--bad)" : "var(--warn)";
+        const opacity = line.primary ? ".9" : ".72";
+        return `<g opacity="${opacity}">
+          <line x1="${pad.left}" x2="${width - pad.right}" y1="${line.y}" y2="${line.y}" stroke="${stroke}" stroke-dasharray="${line.primary ? "4 4" : "2 5"}" />
+          <text x="${pad.left - 8}" y="${labelY}" text-anchor="end" fill="var(--muted)" font-size="11">${config.format(line.value)}</text>
+        </g>`;
+      }).join("");
+    }
     function nearestByX(series, xValue, x) {
       let best = series[0];
       let bestDist = Infinity;
@@ -1561,8 +1618,9 @@
       const height = 110;
       const pad = { top: 12, right: 12, bottom: 20, left: 42 };
       const x = xScale(series, width, pad);
-      const ys = yScale(values.concat([config.threshold]), height, pad);
-      const thresholdY = ys.y(config.threshold);
+      const thresholds = (config.thresholds || [config.threshold]).filter(Number.isFinite);
+      const ys = yScale(values.concat(thresholds), height, pad);
+      const thresholdNodes = thresholdLines(config, ys, width, height, pad);
       return `<div class="mini">
         <div class="mini-head">
           <span class="label">${config.label}</span>
@@ -1571,8 +1629,7 @@
         <div class="mini-chart">
           <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">
             <rect width="${width}" height="${height}" fill="var(--surface)" />
-            <line x1="${pad.left}" x2="${width - pad.right}" y1="${thresholdY}" y2="${thresholdY}" stroke="var(--bad)" stroke-dasharray="4 4" />
-            <text x="${pad.left - 8}" y="${thresholdY + 4}" text-anchor="end" fill="var(--muted)" font-size="11">${config.format(config.threshold)}</text>
+            ${thresholdNodes}
             <path d="${linePath(series, config.key, x, ys.y.bind(ys))}" fill="none" stroke="${config.color}" stroke-width="2.2" vector-effect="non-scaling-stroke" />
           </svg>
         </div>
